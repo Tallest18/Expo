@@ -42,6 +42,14 @@ export interface BusinessSelectionExtraProps {
   onGoBack?: () => void;
 }
 
+const CartIcon: React.FC<{ size?: number }> = ({ size = 60 }) => (
+  <Text style={{ fontSize: size }}>🛒</Text>
+);
+
+const PeopleIcon: React.FC<{ size?: number }> = ({ size = 60 }) => (
+  <Text style={{ fontSize: size }}>🧍‍♂️</Text>
+);
+
 const BusinessSelectionScreen: React.FC<BusinessSelectionExtraProps> = ({
   onFinish,
   onGoBack,
@@ -56,6 +64,11 @@ const BusinessSelectionScreen: React.FC<BusinessSelectionExtraProps> = ({
     "Poppins-Light": require("../../assets/fonts/Poppins-Light.ttf"),
   });
 
+  // wait for fonts to load
+  if (!fontsLoaded) {
+    return null;
+  }
+
   const handleFinish = async () => {
     if (loading) return;
     setLoading(true);
@@ -63,16 +76,15 @@ const BusinessSelectionScreen: React.FC<BusinessSelectionExtraProps> = ({
     try {
       if (onFinish) {
         onFinish(selectedType);
+        setLoading(false);
         return;
       }
 
-      // Save onboarding info
       await Promise.all([
         AsyncStorage.setItem("businessType", selectedType),
         AsyncStorage.setItem("hasCompletedOnboarding", "true"),
       ]);
 
-      // Navigate
       try {
         router.replace("/(Main)/Home");
       } catch {
@@ -146,21 +158,7 @@ const BusinessSelectionScreen: React.FC<BusinessSelectionExtraProps> = ({
           </View>
 
           <View style={styles.businessIcon}>
-            {" "}
-            {isRetail ? (
-              <View style={styles.cartIcon}>
-                🛒
-                <View style={styles.cartBody} />
-                <View style={styles.cartHandle} />
-                <View style={[styles.cartWheel, styles.cartWheel1]} />
-                <View style={[styles.cartWheel, styles.cartWheel2]} />
-              </View>
-            ) : (
-              <View style={styles.serviceIcon}>
-                <View style={styles.person1} />
-                <View style={styles.person2} />
-              </View>
-            )}
+            {isRetail ? <CartIcon size={50} /> : <PeopleIcon size={50} />}
           </View>
         </View>
         {isSelected && <View style={styles.selectionIndicator} />}
@@ -274,7 +272,7 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 16,
   },
-  optionsContainer: { marginBottom: 20, gap: 12 },
+  optionsContainer: { marginBottom: 20 },
   businessOption: {
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
@@ -283,6 +281,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     position: "relative",
     minHeight: 80,
+    marginBottom: 12,
   },
   selectedOption: {
     borderColor: "#2046AE",
@@ -308,63 +307,10 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
   },
   businessIcon: {
-    width: 48,
-    height: 48,
+    width: 70,
+    height: 70,
     justifyContent: "center",
     alignItems: "center",
-  },
-  cartIcon: { width: 32, height: 24, position: "relative" },
-  cartBody: {
-    width: 28,
-    height: 16,
-    borderWidth: 2,
-    borderColor: "#374151",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 2,
-    position: "absolute",
-    top: 0,
-    left: 2,
-  },
-  cartHandle: {
-    width: 16,
-    height: 12,
-    borderWidth: 2,
-    borderColor: "#374151",
-    borderRadius: 4,
-    borderBottomWidth: 0,
-    position: "absolute",
-    top: -2,
-    left: -2,
-    backgroundColor: "transparent",
-  },
-  cartWheel: {
-    width: 4,
-    height: 4,
-    backgroundColor: "#374151",
-    borderRadius: 2,
-    position: "absolute",
-    bottom: -4,
-  },
-  cartWheel1: { left: 6 },
-  cartWheel2: { right: 6 },
-  serviceIcon: { width: 32, height: 24, position: "relative" },
-  person1: {
-    width: 12,
-    height: 20,
-    backgroundColor: "#EF4444",
-    borderRadius: 6,
-    position: "absolute",
-    left: 4,
-    top: 2,
-  },
-  person2: {
-    width: 12,
-    height: 20,
-    backgroundColor: "#3B82F6",
-    borderRadius: 6,
-    position: "absolute",
-    right: 4,
-    top: 2,
   },
   selectionIndicator: {
     position: "absolute",
@@ -409,6 +355,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: "Poppins-Regular",
     color: "#2046AE",
+  },
+  emoji: {
+    fontSize: 50,
   },
 });
 
