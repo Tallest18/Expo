@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-// CORRECTED: Using modular SDK imports (assumes Firebase is set up correctly for Expo/web)
 import { addDoc, collection } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
@@ -26,6 +25,8 @@ import {
   launchImageLibrary,
   MediaType,
 } from "react-native-image-picker";
+// IMPORT FOR BARCODE SCANNER
+import { BarCodeScanner } from "expo-barcode-scanner";
 import { auth, db, storage } from "../config/firebaseConfig";
 
 const { width } = Dimensions.get("window");
@@ -107,6 +108,12 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
+  // BARCODE SCANNER STATES
+  const [hasScannerPermission, setHasScannerPermission] = useState<
+    boolean | null
+  >(null);
+  const [scannerScanned, setScannerScanned] = useState(false); // To prevent multiple scans
+
   // Form data state
   const [formData, setFormData] = useState<FormData>({
     productName: "",
@@ -135,6 +142,18 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
 
   // Check if user is authenticated
   const currentUser = auth.currentUser;
+
+  // EFFECT: Get Barcode Scanner Permissions
+  useEffect(() => {
+    const getBarCodeScannerPermissions = async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasScannerPermission(status === "granted");
+    };
+
+    if (showScanner) {
+      getBarCodeScannerPermissions();
+    }
+  }, [showScanner]);
 
   // Update progress based on filled fields
   useEffect(() => {
@@ -195,10 +214,24 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
     }
   };
 
-  const handleBarcodeScan = (data: string) => {
+  // BARCODE SCANNER HANDLER
+  const handleBarCodeScanned = ({ data }: { type: string; data: string }) => {
+    setScannerScanned(true); // Stop scanning immediately
     updateFormData("sku", data);
-    setShowScanner(false);
-    Alert.alert("Success", "Barcode scanned successfully!");
+    Alert.alert(
+      "Barcode Scanned",
+      `SKU/Barcode: ${data}`,
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            setShowScanner(false);
+            setScannerScanned(false);
+          },
+        },
+      ],
+      { cancelable: false }
+    );
   };
 
   const uploadImage = async (uri: string): Promise<string> => {
@@ -224,7 +257,7 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
   };
 
   const handlePickImage = async (useCamera: boolean) => {
-    // Request camera permissions on Android
+    // Request camera permissions on Android (This is for the IMAGE picker, not barcode)
     if (Platform.OS === "android") {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.CAMERA,
@@ -514,10 +547,14 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
             onChangeText={(value) => updateFormData("sku", value)}
             keyboardType="numeric"
           />
-          {/* Barcode scanner placeholder */}
+          {/* Barcode scanner button */}
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={() => setShowScanner(true)}
+            onPress={() => {
+              // Reset scanned state when opening scanner
+              setScannerScanned(false);
+              setShowScanner(true);
+            }}
           >
             <Ionicons name="barcode" size={20} color="#007AFF" />
           </TouchableOpacity>
@@ -916,6 +953,49 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
     </ScrollView>
   );
 
+  // BARCODE SCANNER MODAL CONTENT RENDERER
+  const renderBarcodeScanner = () => {
+    if (hasScannerPermission === null) {
+      return (
+        <View style={styles.scannerMessageContainer}>
+          <Text style={styles.scannerMessageText}>
+            Requesting camera permission...
+          </Text>
+        </View>
+      );
+    }
+    if (hasScannerPermission === false) {
+      return (
+        <View style={styles.scannerMessageContainer}>
+          <Text style={[styles.scannerMessageText, { color: "#FF3B30" }]}>
+            No access to camera. Please grant permission in device settings.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner
+          // Only call the handler if a code hasn't already been detected
+          onBarCodeScanned={scannerScanned ? undefined : handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.scanTargetOverlay}>
+          <Text style={styles.scanTargetText}>
+            Align the Barcode/SKU within this frame
+          </Text>
+        </View>
+        {scannerScanned && (
+          <View style={styles.scannerScannedOverlay}>
+            <ActivityIndicator size="large" color="#FFF" />
+            <Text style={styles.scannerScannedText}>Barcode detected...</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Check authentication before rendering
   if (!currentUser) {
     return (
@@ -990,24 +1070,22 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
           </View>
         )}
 
-        {/* Barcode Scanner Modal (Placeholder) */}
+        {/* Barcode Scanner Modal (Corrected Implementation) */}
         <Modal visible={showScanner} transparent animationType="slide">
-          <View style={styles.imagePickerModal}>
-            <View style={styles.imagePickerContent}>
-              <Text style={styles.imagePickerTitle}>Barcode Scanner</Text>
-              <Text style={styles.imagePickerOptionText}>
-                [Barcode scanner component goes here]
-              </Text>
-              {/* This is where you would place your BarcodeScanner component */}
-              {/* For example: <BarcodeScanner onScan={handleBarcodeScan} /> */}
+          <SafeAreaView style={styles.scannerModalContainer}>
+            <View style={styles.scannerModalHeader}>
+              <Text style={styles.scannerModalTitle}>Scan Barcode</Text>
               <TouchableOpacity
-                style={styles.imagePickerCancel}
-                onPress={() => setShowScanner(false)}
+                onPress={() => {
+                  setShowScanner(false);
+                  setScannerScanned(false);
+                }}
               >
-                <Text style={styles.imagePickerCancelText}>Cancel</Text>
+                <Ionicons name="close" size={30} color="#FFF" />
               </TouchableOpacity>
             </View>
-          </View>
+            {renderBarcodeScanner()}
+          </SafeAreaView>
         </Modal>
 
         {/* Loading Overlay */}
@@ -1497,6 +1575,66 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
+  },
+  // BARCODE SCANNER STYLES
+  scannerModalContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  scannerModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  scannerModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  scannerContainer: {
+    flex: 1,
+  },
+  scannerMessageContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  scannerMessageText: {
+    fontSize: 18,
+    color: "#FFF",
+    textAlign: "center",
+    padding: 20,
+  },
+  scanTargetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    // Creates a square "hole" effect for scanning
+    borderWidth: width / 2,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  scanTargetText: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    color: "#FFF",
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 100, // Position it below the actual scan area
+  },
+  scannerScannedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 122, 255, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scannerScannedText: {
+    marginTop: 10,
+    fontSize: 18,
+    color: "#FFF",
+    fontWeight: "bold",
   },
 });
 
