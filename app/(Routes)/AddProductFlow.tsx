@@ -312,8 +312,9 @@ const AddProductFlow: React.FC<AddProductFlowProps> = ({
       if (
         !formData.productName ||
         !formData.sku ||
-        !formData.category ||
-        !formData.productImage
+        !formData.category
+        //||
+        // !formData.productImage
       ) {
         Alert.alert(
           "Missing Information",
